@@ -17,7 +17,7 @@ utils::data("CLL_data")
 #1Cargar y visualizar los datos
 
 #Vamos a echar un vistazo a los datos
-# esta dormado por una lista de matrices
+# esta formado por una lista de matrices
 
 # respuesta a drogas exvivo
 CLL_data$Drugs[1:10,1:10]
@@ -46,7 +46,7 @@ head(CLL_metadata)
 # Creamos el objeto de MOFA
 MOFAobject <- create_mofa(CLL_data)
 
-#Vamonos datos ys a ver el conjunto de nuestros datos n de cada vista 
+#Vamos a ver el conjunto de nuestros datos. Vamos a ver la n de cada vista 
 # y si hay algunos datos desconocidos
 plot_data_overview(MOFAobject)
 
@@ -56,10 +56,10 @@ plot_data_overview(MOFAobject)
 data_opts <- get_default_data_options(MOFAobject)
 data_opts
 
-# Dejamos las opciones d elos datos como estan.
+# Dejamos las opciones de los datos como están.
 
 # El escalado de las vistas permite ajustar
-# el hecho de que haya una vista que aporte mucha mas informacióon que otra
+# el hecho de que haya una vista que aporte mucha mas información que otra
 # Pero cuidado con la interpretación. Estas forzando a que las vistas
 # sean comparables
 
@@ -104,10 +104,10 @@ samples_metadata(MOFAobject) <- CLL_metadata
 #####################################################################################
 #3 Investigar el modelo
 
-# Buscamos factores que expliquen variabilidades unicas que no deben de correlacionar entre sí
+# Buscamos factores que expliquen variabilidades únicas que no deben de correlacionar entre sí
 plot_factor_cor(MOFAobject)
 
-#Estudio d ela varianza explicada por cada afctor en cada vista
+#Estudio de la varianza explicada por cada afctor en cada vista
 
 plot_variance_explained(MOFAobject, max_r2=15)
 
@@ -116,13 +116,14 @@ plot_variance_explained(MOFAobject, max_r2=15)
 
 # El Factor 2 y 3 captura una fuente de variación presente en fármacos y mRNA.  
 
-# El Factor 4 captura variaciones presentes en múltiples modalidades de datos, mas escasa en la metilación del ADN.  
+# El Factor 4 captura variaciones presentes en múltiples modalidades de datos, 
+#mas escasa en la metilación del ADN.  
 # Esto probablemente también sea importante.  
 
 #Vamos a estudiar la variabildiad de que vistas estan mas explicadas por el modelo
 plot_variance_explained(MOFAobject, plot_total = T)[[2]]
 ##############################################################################
-#Asociacion entre factores y variables clinicas con MOFA
+#Asociación entre factores y variables clinicas con MOFA
 
 correlate_factors_with_covariates(MOFAobject, 
   covariates = c("Gender","died","trisomy12","IGHV"), 
