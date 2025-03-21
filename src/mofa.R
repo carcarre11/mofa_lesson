@@ -1,7 +1,7 @@
 
 
 
-#Cargamos los paquetes que necesitamos para la práctica
+# Cargamos los paquetes necesarios para la práctica
 
 library(MOFA2)
 library(MOFAdata)
@@ -10,24 +10,70 @@ library(ggplot2)
 library(tidyverse)
 library(fitdistrplus)
 library(pheatmap)
-#cargamos los datos 
+
+# Cargamos los datos 
 utils::data("CLL_data")       
-#################################################
-#################################################
-#1Cargar y visualizar los datos
 
-#Vamos a echar un vistazo a los datos
-# esta formado por una lista de matrices
+## 1. Cargar, visualizar y transformar los datos
 
-# respuesta a drogas exvivo
+# Echamos un vistazo al objeto,
+# que está formado por una lista de matrices.
+
+# Respuesta a drogas ex vivo
 CLL_data$Drugs[1:10,1:10]
 
-# Metilación 
+drug <- CLL_data$Drugs[1,]
+drug <- drug[!is.na(drug)]
+
+# MOFA funciona mejor con distribuciones gaussianas.
+# En ocasiones, es necesario transformar los datos
+# utilizando el logaritmo para ajustarlos a una distribución normal.
+
+# Estudiamos el histograma antes y después de aplicar el logaritmo
+plotdist(drug, histo = TRUE, demp = TRUE)
+plotdist(log2(drug), histo = TRUE, demp = TRUE)
+
+# Estudiamos el gráfico QQ para ver en qué caso se ajusta mejor a una normal
+qqnorm(drug)
+qqline(drug, col = "red")
+
+qqnorm(log2(drug))
+qqline(log2(drug), col = "red")
+
+# Por último, podemos usar la prueba de Kolmogorov-Smirnov
+# para evaluar si la distribución se aproxima a una normal.
+# La hipótesis nula es que sigue una distribución normal,
+# por lo tanto, valores p mayores a 0.05 indicarían que no se rechaza la hipótesis nula
+# y, por lo tanto, que la distribución es normal.
+
+ks.test(drug, "pnorm", mean(gene), sd(gene))
+ks.test(log2(drug), "pnorm", mean(log2(drug)), sd(log2(drug)))
+
+# Vemos que la transformación logarítmica mejora los resultados,
+# por lo tanto, modificamos los datos.
+
+CLL_data$Drugs[!is.na(CLL_data$Drugs)] <- log2(CLL_data$Drugs[!is.na(CLL_data$Drugs)])
+
+# Metilación
+
+# La metilación debe utilizarse en valores M
+# para que siga una distribución lo más parecida posible a la gaussiana.
+
 CLL_data$Methylation[1:10,1:10]
 
+cpg <- CLL_data$Methylation[1,]
+cpg <- cpg[!is.na(cpg)]
 
-# RNA 
-CLL_data$mRNA[1:10,1:10] 
+# Verificamos que no sigue una normal, pero es la distribución más parecida.
+ks.test(cpg, "pnorm", mean(cpg), sd(cpg))
+
+# RNA
+
+# Vamos a averiguar la distribución que tiene el
+# RNA-seq normalizado para decidir qué verosimilitud
+# utilizar. Seguimos la misma estrategia que con las drogas.
+
+CLL_data$mRNA[1:10,1:10]
 
 gene <- CLL_data$mRNA[1,]
 gene <- gene[!is.na(gene)]
@@ -35,156 +81,163 @@ gene <- gene[!is.na(gene)]
 plotdist(gene, histo = TRUE, demp = TRUE)
 plotdist(log2(gene), histo = TRUE, demp = TRUE)
 
-# Mutations 
+qqnorm(gene)
+qqline(gene, col = "red")
+
+qqnorm(log(gene))
+qqline(log(gene), col = "red")
+
+ks.test(gene, "pnorm", mean(gene), sd(gene))
+ks.test(log(gene), "pnorm", mean(log(gene)), sd(log(gene)))
+
+CLL_data$mRNA[!is.na(CLL_data$mRNA)] <- log2(CLL_data$mRNA[!is.na(CLL_data$mRNA)] +1)
+
+# Mutaciones
 CLL_data$Mutations[1:10,1:10]
 
-#Cargamos los metadatos
+# Las mutaciones están en formato presencia/ausencia,
+# por lo que siguen una distribución de Bernoulli.
+
+# Cargamos los metadatos
 CLL_metadata <- fread("ftp://ftp.ebi.ac.uk/pub/databases/mofa/cll_vignette/sample_metadata.txt")
 
 head(CLL_metadata)
 
-# Creamos el objeto de MOFA
+# Creamos el objeto MOFA
 MOFAobject <- create_mofa(CLL_data)
 
-#Vamos a ver el conjunto de nuestros datos. Vamos a ver la n de cada vista 
-# y si hay algunos datos desconocidos
+# Revisamos el conjunto de nuestros datos: número de vistas
+# y si hay datos desconocidos.
 plot_data_overview(MOFAobject)
 
 #################################################
 #################################################
-#2Generar el modelo
+# 2. Generar el modelo
+
 data_opts <- get_default_data_options(MOFAobject)
 data_opts
 
 # Dejamos las opciones de los datos como están.
 
 # El escalado de las vistas permite ajustar
-# el hecho de que haya una vista que aporte mucha mas información que otra
-# Pero cuidado con la interpretación. Estas forzando a que las vistas
-# sean comparables
+# el hecho de que una vista aporte mucha más información que otra.
+# Sin embargo, hay que tener cuidado con la interpretación,
+# ya que esto fuerza a que las vistas sean comparables.
 
 model_opts <- get_default_model_options(MOFAobject)
 model_opts
 
-# En primer lugar cambiamos la distribución de
-# las mutaciones que es de Bernouille (presencia ausencia)
+# En primer lugar, cambiamos la distribución de
+# las mutaciones a Bernoulli (presencia/ausencia).
 model_opts$likelihoods["Mutations"] <- "bernoulli"
 model_opts$num_factors <- 10
 
-
 train_opts <- get_default_training_options(MOFAobject)
 
-# los objetivos del training
-# En esta práctica hemos seleccionado fast para
-#que tarde menos pero recordad, que para vuestro modelo
-#final necesita estar en slow para que sea mas preciso
+# Opciones de entrenamiento:
+# En esta práctica hemos seleccionado "fast"
+# para reducir el tiempo de ejecución,
+# pero para un modelo final se recomienda "slow"
+# para obtener mayor precisión.
 
-#stochastic = TRUE puede ser util y necesario
-# para dataset grandes como en single cell
-
+# stochastic = TRUE puede ser útil y necesario
+# para conjuntos de datos grandes, como en single-cell.
 
 train_opts$convergence_mode <- "fast"
 train_opts$seed <- 123
 
 # Entrenamos el modelo
-
 MOFAobject <- prepare_mofa(MOFAobject,
   data_options = data_opts,
   model_options = model_opts,
   training_options = train_opts
 )
 
-#Generamos el modelo con las opciones
-#escogidas
+# Generamos el modelo con las opciones escogidas
+MOFAobject <- run_mofa(MOFAobject, outfile="MOFA2_CLL.hdf5", use_basilisk = TRUE)
 
-MOFAobject <- run_mofa(MOFAobject, outfile="MOFA2_CLL.hdf5",use_basilisk = TRUE)
-
-# Añadimos el metadata
+# Añadimos los metadatos
 samples_metadata(MOFAobject) <- CLL_metadata
-#####################################################################################
-#3 Investigar el modelo
 
-# Buscamos factores que expliquen variabilidades únicas que no deben de correlacionar entre sí
+#####################################################################################
+# 3. Investigar el modelo
+
+# Buscamos factores que expliquen variabilidades únicas
+# y que no deben correlacionarse entre sí.
 plot_factor_cor(MOFAobject)
 
-#Estudio de la varianza explicada por cada afctor en cada vista
+# Estudio de la varianza explicada por cada factor en cada vista.
 
-plot_variance_explained(MOFAobject, max_r2=15)
+plot_variance_explained(MOFAobject, max_r2 = 15)
 
-# El Factor 1 captura una fuente de variabilidad presente en todas las modalidades de datos.  
-# Por lo tanto, su etiología probablemente sea algo muy importante para la enfermedad.  
+# El Factor 1 captura una fuente de variabilidad presente en todas las modalidades de datos.
+# Por lo tanto, su etiología probablemente sea clave para la enfermedad.
 
-# El Factor 2 y 3 captura una fuente de variación presente en fármacos y mRNA.  
+# Los Factores 3 y 4 capturan variabilidad en fármacos y mRNA.
 
-# El Factor 4 captura variaciones presentes en múltiples modalidades de datos, 
-#mas escasa en la metilación del ADN.  
-# Esto probablemente también sea importante.  
+# El Factor 2 captura variabilidad en múltiples modalidades de datos,
+# aunque en menor medida en la metilación del ADN.
+# Esto también puede ser importante.
 
-#Vamos a estudiar la variabildiad de que vistas estan mas explicadas por el modelo
-plot_variance_explained(MOFAobject, plot_total = T)[[2]]
+# Analizamos qué vistas están más explicadas por el modelo.
+plot_variance_explained(MOFAobject, plot_total = TRUE)[[2]]
+
 ##############################################################################
-#Asociación entre factores y variables clinicas con MOFA
+# Asociación entre factores y variables clínicas con MOFA
 
 correlate_factors_with_covariates(MOFAobject, 
-  covariates = c("Gender","died","trisomy12","IGHV"), 
-  plot="log_pval"
+  covariates = c("Gender", "died", "trisomy12", "IGHV"), 
+  plot = "log_pval"
 )
 
-# Si no os convence los métodos usados por lo autores
-# Sacad los pesos y usa tu propio código para hacer
-# los análisis
+# Si no convencen los métodos utilizados por los autores,
+# se pueden extraer los pesos y realizar los análisis con código propio.
 
 Z <- get_expectations(MOFAobject, variable = "Z") 
 
 meta <- MOFAobject@samples_metadata
+meta <- cbind(meta, Z)
 
-meta <- cbind(meta,Z)
+# Se escriben funciones para calcular la matriz de p-valores usando ANOVA.
 
-#Escribimos nuestras funciones para sacar la matriz de p valores usando  anova
-source("src/functions.R")
-
-#Sacamos la matriz de p-valores    
+# Se extrae la matriz de p-valores    
 p.values <- matrix.pvalues(data = meta,
-variables_of_interest = c("Gender","died","trisomy12", "IGHV"))
+  variables_of_interest = c("Gender", "died", "trisomy12", "IGHV"))
 
-#Ajustamos los p valores por test multiple de cada variable
-p_adjusted_matrix <- apply(p.values,  2, function(x) p.adjust(x, method = "fdr"))
+# Se ajustan los p-valores por pruebas múltiples.
+p_adjusted_matrix <- apply(p.values, 2, function(x) p.adjust(x, method = "fdr"))
 
-#Transform to -log10(pval)
+# Se transforman los valores a -log10(p)
 p_transformed_matrix <- -log10(p_adjusted_matrix)
-
-# Convertir la matriz a un formato largo
+# Convertimos la matriz a un formato largo
 p_matrix_long <- as.data.frame(as.table(p_transformed_matrix)) %>%
   rename(Row = Var1, Column = Var2, p_value = Freq) %>% 
   mutate(
-    Row = gsub("group1\\.","",Row),
-    Column = gsub("\\.p.value","",Column)
-) 
+    Row = gsub("group1\\.", "", Row),
+    Column = gsub("\\.p.value", "", Column)
+  ) 
 
+# Establecemos un umbral para los valores de p transformados
 p_matrix_long$p_value[p_matrix_long$p_value < -log10(0.05)] <- 0
 
-
-# Crear el heatmap
+# Creamos el heatmap
 ggplot(p_matrix_long, aes(x = Column, y = Row, fill = p_value)) +
-  geom_tile(color = "black",lwd = 0.5) +
-  scale_fill_gradient(low = "white", high = "red") +
-  scale_fill_gradientn(colors = c("grey", "white", "red"), values = c(0, 0.000001, 1))+
+  geom_tile(color = "black", lwd = 0.5) +
+  scale_fill_gradientn(colors = c("grey", "white", "red"), values = c(0, 0.000001, 1)) +
   theme_minimal() +
   labs(title = "Heatmap de p-valores", x = "Columnas", y = "Filas") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-
 ######################################################################################
-# Una vez que sabemos que variables se relacionan con que factores podemos mostrarlo
-#con diferentes gráficos
+# Una vez que identificamos qué variables están relacionadas con qué factores,
+# podemos representarlo con diferentes gráficos.
 
-# En este caso el factor 1 y la mutaciñon de IGHV tiene una clara asociación
+# En este caso, el Factor 1 y la mutación en IGHV muestran una clara asociación.
 
 plot_factor(MOFAobject, 
   factors = 1, 
   color_by = "IGHV"
 )
-
 
 plot_factor(MOFAobject, 
   factors = 1, 
@@ -192,31 +245,32 @@ plot_factor(MOFAobject,
   add_violin = TRUE,
   dodge = TRUE
 )
-# Vamos a corroborar en la matriz de mutaciones que efectivamente IGHV esta explicando
-# variabilidad en la vista de mutaciones
 
-W.mutations <-  as.data.frame(get_expectations(MOFAobject, variable = "W")$Mutations)
+# Verificamos en la matriz de mutaciones si IGHV realmente está explicando
+# variabilidad en la vista de mutaciones.
 
-head(W.mutations[order(W.mutations$Factor1, decreasing= T),])
+W.mutations <- as.data.frame(get_expectations(MOFAobject, variable = "W")$Mutations)
 
-#Podemos usar los plots del paquete para mostrarlo graficamente
+head(W.mutations[order(abs(W.mutations$Factor1), decreasing = TRUE),])
+
+# Podemos usar las funciones de MOFA para representarlo gráficamente.
+
 plot_weights(MOFAobject,
- view = "Mutations",
- factor = 1,
- nfeatures = 10,     # Top number of features to highlight
- scale = T           # Scale weights from -1 to 1
+  view = "Mutations",
+  factor = 1,
+  nfeatures = 10,     # Número de características principales a resaltar
+  scale = TRUE        # Escala los pesos de -1 a 1
 )
 
 plot_top_weights(MOFAobject,
- view = "Mutations",
- factor = 1,
- nfeatures = 10,     # Top number of features to highlight
- scale = T           # Scale weights from -1 to 1
+  view = "Mutations",
+  factor = 1,
+  nfeatures = 10,
+  scale = TRUE
 )
 
-#Ahora ya sabemos que el Factor1 basicamente diferencia las muestras en funciñon
-# de su mutacion en IGHV.
-#Ahora queremos saber como se relaciona esto con las demás capas
+# Ahora sabemos que el Factor 1 diferencia las muestras según la mutación en IGHV.
+# Queremos analizar cómo se relaciona esto con las demás capas.
 
 plot_weights(MOFAobject, 
   view = "mRNA", 
@@ -224,7 +278,62 @@ plot_weights(MOFAobject,
   nfeatures = 10
 )
 
-#Vemos que hay un gen que claramente esta asociado a este factor al polo positivo
-# y otro grupo hacia el otro sentido
-# Hay un gen por lo tanto mas expresado en las muestras mutadas y otros genes
-# menos expresados en las no mutadas.
+# Observamos que hay un gen asociado a este factor en el polo positivo
+# y otro grupo de genes en el otro sentido.
+# Es decir, hay un gen más expresado en las muestras mutadas
+# y otros genes más expresados en las muestras no mutadas.
+
+## Anotamos los genes para mostrar sus símbolos y facilitar la interpretación biológica.
+
+MOFAobject_symbol <- MOFAobject
+
+updated_features_names <- features_names(MOFAobject_symbol)
+
+genesID <- mygene::queryMany(updated_features_names[["mRNA"]], 
+                             scopes = "ensembl.gene", 
+                             fields = "symbol", 
+                             species = "human")
+
+genesID <- genesID[!duplicated(genesID$query), ]
+updated_features_names[["mRNA"]] <- ifelse(is.na(genesID$symbol), genesID$query, genesID$symbol)
+features_names(MOFAobject_symbol) <- updated_features_names
+
+plot_weights(MOFAobject_symbol, 
+  view = "mRNA", 
+  factor = 1, 
+  nfeatures = 10
+)
+
+# Vemos que la mutación en IGHV (cadena de inmunoglobulina pesada)
+# podría estar afectando el transcriptoma, provocando:
+# - Mayor expresión de ADAM29
+
+# Ahora analizamos su impacto en la respuesta a fármacos:
+
+plot_weights(MOFAobject, 
+  view = "Drugs", 
+  factor = 1, 
+  nfeatures = 10
+)
+
+# Vemos que la respuesta a varios fármacos está afectada por esta relación.
+
+# Para realizar un análisis de enriquecimiento con el método de los autores,
+# cargamos los conjuntos de genes predefinidos en el paquete.
+# Si quisiéramos usar otros, tendríamos que cargarlos y ajustarlos 
+# al mismo formato (genes en columnas, 1 si pertenece a la ruta, 0 si no).
+
+utils::data("MSigDB_v6.0_C2_human")
+
+enrichment.parametric <- run_enrichment(MOFAobject,
+  view = "mRNA", 
+  factors = 1,
+  feature.sets = MSigDB_v6.0_C2_human,
+  sign = "positive",
+  statistical.test = "parametric"
+)
+
+plot_enrichment(enrichment.parametric, 
+  factor = 1, 
+  max.pathways = 15
+)

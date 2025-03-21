@@ -8,7 +8,6 @@ analysis_differences <- function(data, variables_of_interest, factor) {
   # Apply linear models and perform ANOVA
   results <- lapply(variables_of_interest, function(var) {
 
-      var <- na.omit(filtered_data[,var]) # eliminamos los NA
 
     model <- lm(as.formula(paste(factor, "~", var)), data = filtered_data)    
     anova_result <- anova(model)
