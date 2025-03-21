@@ -13,7 +13,7 @@ library(pheatmap)
 
 # Cargamos los datos 
 utils::data("CLL_data")       
-
+source("src/functions.R")
 ## 1. Cargar, visualizar y transformar los datos
 
 # Echamos un vistazo al objeto,
