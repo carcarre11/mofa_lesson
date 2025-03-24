@@ -221,6 +221,8 @@ p_matrix_long <- as.data.frame(as.table(p_transformed_matrix)) %>%
 # Establecemos un umbral para los valores de p transformados
 p_matrix_long$p_value[p_matrix_long$p_value < -log10(0.05)] <- 0
 
+p_matrix_long$Row <- factor(p_matrix_long$Row, levels = c("Factor1","Factor2","Factor3",
+"Factor4","Factor5","Factor6","Factor7","Factor8","Factor9","Factor10"))
 # Creamos el heatmap
 ggplot(p_matrix_long, aes(x = Column, y = Row, fill = p_value)) +
   geom_tile(color = "black", lwd = 0.5) +
@@ -273,7 +275,7 @@ plot_top_weights(MOFAobject,
 # Ahora sabemos que el Factor 1 diferencia las muestras según la mutación en IGHV.
 # Queremos analizar cómo se relaciona esto con las demás capas.
 
-plot_weights(MOFAobject, 
+plot_top_weights(MOFAobject, 
   view = "mRNA", 
   factor = 1, 
   nfeatures = 10
@@ -299,7 +301,7 @@ genesID <- genesID[!duplicated(genesID$query), ]
 updated_features_names[["mRNA"]] <- ifelse(is.na(genesID$symbol), genesID$query, genesID$symbol)
 features_names(MOFAobject_symbol) <- updated_features_names
 
-plot_weights(MOFAobject_symbol, 
+plot_top_weights(MOFAobject_symbol, 
   view = "mRNA", 
   factor = 1, 
   nfeatures = 10
