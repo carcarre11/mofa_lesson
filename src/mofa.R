@@ -10,7 +10,8 @@ library(ggplot2)
 library(tidyverse)
 library(fitdistrplus)
 library(pheatmap)
-
+library(survival)
+library(survminer)
 # Cargamos los datos 
 utils::data("CLL_data")       
 source("src/functions.R")
@@ -337,3 +338,56 @@ plot_enrichment(enrichment.parametric,
   factor = 1, 
   max.pathways = 15
 )
+
+####################################################################
+#Por último vamos a hacer un análisis tiempo dependiente tratando de relacionar
+# Los factores con el riesgo de necesitar un segundo tratamiento 
+
+SurvObject <- Surv(MOFAobject@samples_metadata$TTT, MOFAobject@samples_metadata$treatedAfter)
+Z <- get_factors(MOFAobject)[[1]]
+fit <- coxph(SurvObject ~ Z) 
+fit
+
+#Vemos varios factores asociados 
+# Sin embargo, el factor 1 es el que se encuentra mas asociado donde cuando mayor sea el factor 1
+# menor riesgo de tener que recibir un segundo tratamiento
+#Y sabemos que la mutación en IGHV y la mayor expresión de ADAM29 se asocia respuesta de varios fármacos
+# Tambien lo hace en los tratamientos de los pacientes
+
+
+#Podemos ver los resultados de la regresiñon de cox en un forestplot
+s <- summary(fit)
+coef <- s[["coefficients"]]
+
+df <- data.frame(
+  factor = factor(rownames(coef), levels = rev(rownames(coef))),
+  p      = coef[,"Pr(>|z|)"], 
+  coef   = coef[,"exp(coef)"], 
+  lower  = s[["conf.int"]][,"lower .95"], 
+  higher = s[["conf.int"]][,"upper .95"]
+)
+
+ggplot(df, aes(x=factor, y=coef, ymin=lower, ymax=higher)) +
+  geom_pointrange( col='#619CFF') + 
+  coord_flip() +
+  scale_x_discrete() + 
+  labs(y="Hazard Ratio", x="") + 
+  geom_hline(aes(yintercept=1), linetype="dotted") +
+  theme_bw()
+
+# Podemos dividir los pacienets en dos grupos en base al factor 1
+# Y hacer un análisis de Kaplan Meier
+  df <- data.frame(
+  time = SurvObject[,1], 
+  event = SurvObject[,2], Z1 = Z[,1]
+)
+cut <- surv_cutpoint(df, variables='Z1')
+df$FactorCluster <- df$Z1 > cut$cutpoint$cutpoint
+fit <- survfit(Surv(time, event) ~ FactorCluster, df)
+
+ggsurvplot(fit, data = df,
+  conf.int = TRUE, pval = TRUE,
+  fun = function(y) y * 100,
+  legend = "top", legend.labs = c(paste("low LF 1"), paste("high LF 1")),
+  xlab = "Time to treatment", ylab="Survival probability (%)", title= "Factor 1"
+)$plot

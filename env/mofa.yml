@@ -16,3 +16,5 @@ dependencies:
   - r-reticulate
   - r-psych
   - bioconductor-mygene
+  - r-survival
+  - r-survminer
