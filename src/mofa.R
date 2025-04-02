@@ -47,7 +47,7 @@ qqline(log2(drug), col = "red")
 # por lo tanto, valores p mayores a 0.05 indicarían que no se rechaza la hipótesis nula
 # y, por lo tanto, que la distribución es normal.
 
-ks.test(drug, "pnorm", mean(gene), sd(gene))
+ks.test(drug, "pnorm", mean(drug), sd(drug))
 ks.test(log2(drug), "pnorm", mean(log2(drug)), sd(log2(drug)))
 
 # Vemos que la transformación logarítmica mejora los resultados,
